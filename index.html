@@ -489,13 +489,13 @@
 
                 if (gridWidth > maxGridWidth || gridHeight > maxGridHeight) {
                     const scale = Math.min(maxGridWidth / gridWidth, maxGridHeight / gridHeight);
-                    gridWidth *= scale;
-                    gridHeight *= scale;
+                    gridWidth = Math.round(gridWidth * scale);
+                    gridHeight = Math.round(gridHeight * scale);
                 }
 
-                // Center grid on image
-                const gridX = this.currentImage.x + (this.currentImage.width - gridWidth) / 2;
-                const gridY = this.currentImage.y + (this.currentImage.height - gridHeight) / 2;
+                // Center grid on image (pixel-perfect)
+                const gridX = Math.round(this.currentImage.x + (this.currentImage.width - gridWidth) / 2);
+                const gridY = Math.round(this.currentImage.y + (this.currentImage.height - gridHeight) / 2);
 
                 // Create grid container
                 const gridContainer = document.createElement('div');
@@ -598,8 +598,9 @@
                     newY = Math.max(this.currentImage.y, 
                             Math.min(newY, this.currentImage.y + this.currentImage.height - this.currentGrid.height));
                     
-                    this.currentGrid.x = newX;
-                    this.currentGrid.y = newY;
+                    // Round to ensure pixel-perfect positioning
+                    this.currentGrid.x = Math.round(newX);
+                    this.currentGrid.y = Math.round(newY);
                     
                     this.updateGridPosition();
                 } else if (this.isResizing && this.currentGrid) {
@@ -611,6 +612,10 @@
                     let newWidth = Math.max(100, this.gridStart.width + delta);
                     let newHeight = newWidth * this.currentGrid.aspectRatio;
                     
+                    // Round to ensure pixel-perfect dimensions
+                    newWidth = Math.round(newWidth);
+                    newHeight = Math.round(newHeight);
+                    
                     // Constrain grid size within image boundaries
                     const maxWidth = this.currentImage.x + this.currentImage.width - this.currentGrid.x;
                     const maxHeight = this.currentImage.y + this.currentImage.height - this.currentGrid.y;
@@ -618,8 +623,8 @@
                     // Scale down if either dimension exceeds boundaries
                     if (newWidth > maxWidth || newHeight > maxHeight) {
                         const scaleDown = Math.min(maxWidth / newWidth, maxHeight / newHeight);
-                        newWidth *= scaleDown;
-                        newHeight *= scaleDown;
+                        newWidth = Math.round(newWidth * scaleDown);
+                        newHeight = Math.round(newHeight * scaleDown);
                     }
                     
                     this.currentGrid.width = newWidth;
@@ -761,15 +766,15 @@ ${gridInfo}`;
                 const rows = parseInt(document.getElementById('gridRows').value);
                 const gapCoversImage = document.getElementById('gapCoversImage').checked;
 
-                // Calculate actual tile dimensions within the grid
+                // Calculate actual tile dimensions within the grid (pixel-perfect)
                 let actualTileWidth, actualTileHeight;
                 
                 if (gapCoversImage) {
-                    actualTileWidth = this.currentGrid.width / cols;
-                    actualTileHeight = this.currentGrid.height / rows;
+                    actualTileWidth = Math.floor(this.currentGrid.width / cols);
+                    actualTileHeight = Math.floor(this.currentGrid.height / rows);
                 } else {
-                    actualTileWidth = (this.currentGrid.width - (cols - 1) * gap) / cols;
-                    actualTileHeight = (this.currentGrid.height - (rows - 1) * gap) / rows;
+                    actualTileWidth = Math.floor((this.currentGrid.width - (cols - 1) * gap) / cols);
+                    actualTileHeight = Math.floor((this.currentGrid.height - (rows - 1) * gap) / rows);
                 }
 
                 // Create preview tiles
@@ -781,11 +786,11 @@ ${gridInfo}`;
                         let tileX, tileY;
                         
                         if (gapCoversImage) {
-                            tileX = this.currentGrid.x + col * actualTileWidth;
-                            tileY = this.currentGrid.y + row * actualTileHeight;
+                            tileX = Math.round(this.currentGrid.x + col * actualTileWidth);
+                            tileY = Math.round(this.currentGrid.y + row * actualTileHeight);
                         } else {
-                            tileX = this.currentGrid.x + col * (actualTileWidth + gap);
-                            tileY = this.currentGrid.y + row * (actualTileHeight + gap);
+                            tileX = Math.round(this.currentGrid.x + col * (actualTileWidth + gap));
+                            tileY = Math.round(this.currentGrid.y + row * (actualTileHeight + gap));
                         }
                         
                         tile.style.left = tileX + 'px';
@@ -825,37 +830,37 @@ ${gridInfo}`;
                 const scaleX = this.currentImage.width / img.width;
                 const scaleY = this.currentImage.height / img.height;
 
-                // Calculate actual tile dimensions within the grid
+                // Calculate actual tile dimensions within the grid (pixel-perfect)
                 let actualTileWidth, actualTileHeight;
                 
                 if (gapCoversImage) {
-                    actualTileWidth = this.currentGrid.width / cols;
-                    actualTileHeight = this.currentGrid.height / rows;
+                    actualTileWidth = Math.floor(this.currentGrid.width / cols);
+                    actualTileHeight = Math.floor(this.currentGrid.height / rows);
                 } else {
-                    actualTileWidth = (this.currentGrid.width - (cols - 1) * gap) / cols;
-                    actualTileHeight = (this.currentGrid.height - (rows - 1) * gap) / rows;
+                    actualTileWidth = Math.floor((this.currentGrid.width - (cols - 1) * gap) / cols);
+                    actualTileHeight = Math.floor((this.currentGrid.height - (rows - 1) * gap) / rows);
                 }
                 
                 for (let row = 0; row < rows; row++) {
                     for (let col = 0; col < cols; col++) {
                         ctx.clearRect(0, 0, tileWidth, tileHeight);
                         
-                        // Calculate tile position within grid
+                        // Calculate tile position within grid (pixel-perfect)
                         let tileX, tileY;
                         
                         if (gapCoversImage) {
-                            tileX = this.currentGrid.x + col * actualTileWidth;
-                            tileY = this.currentGrid.y + row * actualTileHeight;
+                            tileX = Math.round(this.currentGrid.x + col * actualTileWidth);
+                            tileY = Math.round(this.currentGrid.y + row * actualTileHeight);
                         } else {
-                            tileX = this.currentGrid.x + col * (actualTileWidth + gap);
-                            tileY = this.currentGrid.y + row * (actualTileHeight + gap);
+                            tileX = Math.round(this.currentGrid.x + col * (actualTileWidth + gap));
+                            tileY = Math.round(this.currentGrid.y + row * (actualTileHeight + gap));
                         }
                         
-                        // Convert to image coordinates
-                        const sourceX = (tileX - this.currentImage.x) / scaleX;
-                        const sourceY = (tileY - this.currentImage.y) / scaleY;
-                        const sourceWidth = actualTileWidth / scaleX;
-                        const sourceHeight = actualTileHeight / scaleY;
+                        // Convert to image coordinates (pixel-perfect)
+                        const sourceX = Math.round((tileX - this.currentImage.x) / scaleX);
+                        const sourceY = Math.round((tileY - this.currentImage.y) / scaleY);
+                        const sourceWidth = Math.round(actualTileWidth / scaleX);
+                        const sourceHeight = Math.round(actualTileHeight / scaleY);
                         
                         // Apply transformations if needed
                         ctx.save();
@@ -866,7 +871,7 @@ ${gridInfo}`;
                             ctx.translate(-tileWidth / 2, -tileHeight / 2);
                         }
                         
-                        // Draw the tile
+                        // Draw the tile with pixel-perfect coordinates
                         ctx.drawImage(
                             img,
                             sourceX, sourceY, sourceWidth, sourceHeight,
