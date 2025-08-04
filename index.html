@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tyler - Tile Your Pics</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            display: flex;
+            height: 100vh;
+        }
+
+        .sidebar {
+            width: 280px;
+            background: white;
+            padding: 20px;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            overflow-y: auto;
+            z-index: 10;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .canvas-container {
+            flex: 1;
+            position: relative;
+            background: #e0e0e0;
+            overflow: hidden;
+        }
+
+        .canvas {
+            position: absolute;
+            cursor: grab;
+            background: transparent;
+        }
+
+        .canvas:active {
+            cursor: grabbing;
+        }
+
+        .imported-image {
+            position: absolute;
+            border: 2px solid #4CAF50;
+            user-select: none;
+        }
+
+        .grid-container {
+            position: absolute;
+            border: 3px solid #2196F3;
+            cursor: move;
+            user-select: none;
+            z-index: 10;
+        }
+
+        .grid-container:hover {
+            border-color: #1976D2;
+        }
+
+        .resize-handle {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: #2196F3;
+            border: 2px solid white;
+            border-radius: 50%;
+            cursor: se-resize;
+            right: -6px;
+            bottom: -6px;
+            z-index: 15;
+        }
+
+        .rotate-handle {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: #FF5722;
+            border: 2px solid white;
+            border-radius: 50%;
+            cursor: crosshair;
+            right: -6px;
+            top: -6px;
+            z-index: 15;
+        }
+
+        .preview-tile {
+            position: absolute;
+            border: 1px solid rgba(255, 87, 34, 0.7);
+            background: rgba(255, 87, 34, 0.1);
+            pointer-events: none;
+        }
+
+        .controls-group {
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .controls-group:last-child {
+            border-bottom: none;
+        }
+
+        .controls-group h3 {
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .control-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .control-row label {
+            font-size: 14px;
+            color: #666;
+            flex: 1;
+        }
+
+        .control-row input[type="number"] {
+            width: 70px;
+            padding: 6px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .control-row input[type="range"] {
+            flex: 1;
+            margin-left: 10px;
+        }
+
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .checkbox-row input[type="checkbox"] {
+            margin-right: 10px;
+            transform: scale(1.2);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 10px;
+        }
+
+        .btn-primary {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #45a049;
+        }
+
+        .btn-secondary {
+            background: #2196F3;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #1976D2;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .zoom-info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 20;
+        }
+
+        .preview-tiles {
+            position: absolute;
+            pointer-events: none;
+            z-index: 15;
+        }
+
+        .preview-tile {
+            position: absolute;
+            border: 2px solid #FF5722;
+            background: rgba(255, 87, 34, 0.1);
+        }
+
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                height: auto;
+                max-height: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <h2 style="margin-bottom: 20px; color: #333;">Tyler - Tile Your Pics</h2>
+        
+        <div class="controls-group">
+            <h3>📐 Tile Settings</h3>
+            <div class="control-row">
+                <label>Width (px):</label>
+                <input type="number" id="tileWidth" value="400" min="10" max="2000">
+            </div>
+            <div class="control-row">
+                <label>Height (px):</label>
+                <input type="number" id="tileHeight" value="500" min="10" max="2000">
+            </div>
+            <div class="control-row">
+                <label>Gap (px):</label>
+                <input type="number" id="tileGap" value="6" min="0" max="100">
+            </div>
+        </div>
+
+        <div class="controls-group">
+            <h3>🔢 Grid Settings</h3>
+            <div class="control-row">
+                <label>Columns:</label>
+                <input type="number" id="gridCols" value="3" min="1" max="20">
+            </div>
+            <div class="control-row">
+                <label>Rows:</label>
+                <input type="number" id="gridRows" value="3" min="1" max="20">
+            </div>
+        </div>
+
+        <div class="controls-group">
+            <h3>⚙️ Options</h3>
+            <div class="checkbox-row">
+                <input type="checkbox" id="gapCoversImage" checked>
+                <label for="gapCoversImage">Gap covers image</label>
+            </div>
+        </div>
+
+        <div class="controls-group">
+            <h3>🖼️ Image</h3>
+            <input type="file" id="imageInput" class="file-input" accept="image/*">
+            <button class="btn btn-primary" onclick="document.getElementById('imageInput').click()">
+                📁 Import Image
+            </button>
+            <button class="btn btn-secondary" id="downloadBtn" disabled>
+                💾 Download Tiles (ZIP)
+            </button>
+        </div>
+
+        <div class="controls-group">
+            <h3>📊 Current Image</h3>
+            <div id="imageInfo" style="font-size: 12px; color: #666;">
+                No image loaded
+            </div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="canvas-container" id="canvasContainer">
+            <div class="zoom-info" id="zoomInfo">Zoom: 100% | Use mouse wheel to zoom</div>
+            <div class="canvas" id="canvas"></div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script>
+        class TylerApp {
+            constructor() {
+                this.canvas = document.getElementById('canvas');
+                this.canvasContainer = document.getElementById('canvasContainer');
+                this.currentImage = null;
+                this.currentGrid = null;
+                this.zoom = 1;
+                this.panX = 0;
+                this.panY = 0;
+                this.isDragging = false;
+                this.isResizing = false;
+                this.isRotating = false;
+                this.dragStart = { x: 0, y: 0 };
+                this.gridStart = { x: 0, y: 0, width: 0, height: 0, rotation: 0 };
+                
+                this.init();
+            }
+
+            init() {
+                this.setupEventListeners();
+                this.updateCanvas();
+                this.updateTilePreview();
+            }
+
+            setupEventListeners() {
+                // Image input
+                document.getElementById('imageInput').addEventListener('change', (e) => {
+                    this.handleImageUpload(e);
+                });
+
+                // Canvas zoom and pan
+                this.canvasContainer.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    this.handleZoom(e);
+                });
+
+                this.canvasContainer.addEventListener('mousedown', (e) => {
+                    // Only start panning if clicking on canvas container or canvas, not on image
+                    if (e.target === this.canvasContainer || e.target === this.canvas) {
+                        this.handlePanStart(e);
+                    }
+                });
+
+                document.addEventListener('mousemove', (e) => {
+                    this.handleMouseMove(e);
+                });
+
+                document.addEventListener('mouseup', () => {
+                    this.handleMouseUp();
+                });
+
+                // Control updates
+                ['tileWidth', 'tileHeight', 'tileGap', 'gridCols', 'gridRows', 'gapCoversImage'].forEach(id => {
+                    document.getElementById(id).addEventListener('input', () => {
+                        if (this.currentImage) {
+                            this.createGrid();
+                        }
+                        this.updateTilePreview();
+                    });
+                });
+
+                // Download button
+                document.getElementById('downloadBtn').addEventListener('click', () => {
+                    this.downloadTiles();
+                });
+
+                // Window resize
+                window.addEventListener('resize', () => {
+                    this.updateCanvas();
+                });
+            }
+
+            handleImageUpload(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        this.addImage(img, file.name);
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+
+            addImage(img, filename) {
+                // Remove existing image and grid
+                if (this.currentImage) {
+                    this.currentImage.element.remove();
+                }
+                if (this.currentGrid) {
+                    this.currentGrid.element.remove();
+                }
+
+                // Create image container (fixed position)
+                const imageContainer = document.createElement('div');
+                imageContainer.className = 'imported-image';
+                
+                // Create actual image element
+                const imageElement = document.createElement('img');
+                imageElement.src = img.src;
+                imageElement.style.width = '100%';
+                imageElement.style.height = '100%';
+                imageElement.style.objectFit = 'contain';
+                imageElement.style.pointerEvents = 'none';
+                imageElement.draggable = false;
+                
+                // Calculate size to fit in view while maintaining aspect ratio
+                const containerRect = this.canvasContainer.getBoundingClientRect();
+                const maxWidth = Math.min(600, containerRect.width * 0.6);
+                const maxHeight = Math.min(500, containerRect.height * 0.6);
+                
+                const aspectRatio = img.height / img.width;
+                let imageWidth, imageHeight;
+                
+                if (img.width / maxWidth > img.height / maxHeight) {
+                    imageWidth = maxWidth;
+                    imageHeight = maxWidth * aspectRatio;
+                } else {
+                    imageHeight = maxHeight;
+                    imageWidth = maxHeight / aspectRatio;
+                }
+                
+                // Center the image
+                const imageX = 200;
+                const imageY = 150;
+                
+                imageContainer.style.left = imageX + 'px';
+                imageContainer.style.top = imageY + 'px';
+                imageContainer.style.width = imageWidth + 'px';
+                imageContainer.style.height = imageHeight + 'px';
+                imageContainer.style.position = 'absolute';
+
+                imageContainer.appendChild(imageElement);
+                this.canvas.appendChild(imageContainer);
+
+                // Store image data
+                this.currentImage = {
+                    element: imageContainer,
+                    imgElement: imageElement,
+                    originalImg: img,
+                    filename: filename,
+                    x: imageX,
+                    y: imageY,
+                    width: imageWidth,
+                    height: imageHeight,
+                    aspectRatio: aspectRatio
+                };
+
+                // Create movable grid
+                this.createGrid();
+                
+                // Update UI
+                this.updateImageInfo();
+                document.getElementById('downloadBtn').disabled = false;
+                this.updateTilePreview();
+            }
+
+            createGrid() {
+                if (!this.currentImage) return;
+
+                // Remove existing grid
+                if (this.currentGrid) {
+                    this.currentGrid.element.remove();
+                }
+
+                const tileWidth = parseInt(document.getElementById('tileWidth').value);
+                const tileHeight = parseInt(document.getElementById('tileHeight').value);
+                const gap = parseInt(document.getElementById('tileGap').value);
+                const cols = parseInt(document.getElementById('gridCols').value);
+                const rows = parseInt(document.getElementById('gridRows').value);
+                const gapCoversImage = document.getElementById('gapCoversImage').checked;
+
+                // Calculate grid dimensions
+                let gridWidth, gridHeight;
+                if (gapCoversImage) {
+                    gridWidth = cols * tileWidth;
+                    gridHeight = rows * tileHeight;
+                } else {
+                    gridWidth = cols * tileWidth + (cols - 1) * gap;
+                    gridHeight = rows * tileHeight + (rows - 1) * gap;
+                }
+
+                // Store the original aspect ratio
+                const originalAspectRatio = gridHeight / gridWidth;
+
+                // Ensure grid fits within image
+                const maxGridWidth = this.currentImage.width * 0.8;
+                const maxGridHeight = this.currentImage.height * 0.8;
+
+                if (gridWidth > maxGridWidth || gridHeight > maxGridHeight) {
+                    const scale = Math.min(maxGridWidth / gridWidth, maxGridHeight / gridHeight);
+                    gridWidth *= scale;
+                    gridHeight *= scale;
+                }
+
+                // Center grid on image
+                const gridX = this.currentImage.x + (this.currentImage.width - gridWidth) / 2;
+                const gridY = this.currentImage.y + (this.currentImage.height - gridHeight) / 2;
+
+                // Create grid container
+                const gridContainer = document.createElement('div');
+                gridContainer.className = 'grid-container';
+                gridContainer.style.left = gridX + 'px';
+                gridContainer.style.top = gridY + 'px';
+                gridContainer.style.width = gridWidth + 'px';
+                gridContainer.style.height = gridHeight + 'px';
+                gridContainer.style.position = 'absolute';
+
+                // Add resize handle
+                const resizeHandle = document.createElement('div');
+                resizeHandle.className = 'resize-handle';
+                gridContainer.appendChild(resizeHandle);
+
+                // Add rotate handle
+                const rotateHandle = document.createElement('div');
+                rotateHandle.className = 'rotate-handle';
+                gridContainer.appendChild(rotateHandle);
+
+                this.canvas.appendChild(gridContainer);
+
+                // Store grid data
+                this.currentGrid = {
+                    element: gridContainer,
+                    x: gridX,
+                    y: gridY,
+                    width: gridWidth,
+                    height: gridHeight,
+                    rotation: 0,
+                    aspectRatio: originalAspectRatio
+                };
+
+                // Setup grid event listeners
+                this.setupGridEventListeners(gridContainer, resizeHandle, rotateHandle);
+            }
+
+            setupGridEventListeners(gridContainer, resizeHandle, rotateHandle) {
+                // Grid dragging
+                gridContainer.addEventListener('mousedown', (e) => {
+                    if (e.target === resizeHandle || e.target === rotateHandle) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.startGridDrag(e);
+                });
+
+                // Resize handle
+                resizeHandle.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.startGridResize(e);
+                });
+
+                // Rotate handle
+                rotateHandle.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.startGridRotate(e);
+                });
+            }
+
+            startGridDrag(e) {
+                this.isDragging = true;
+                this.dragStart = { x: e.clientX, y: e.clientY };
+                this.gridStart = { ...this.currentGrid };
+            }
+
+            startGridResize(e) {
+                this.isResizing = true;
+                this.dragStart = { x: e.clientX, y: e.clientY };
+                this.gridStart = { ...this.currentGrid };
+            }
+
+            startGridRotate(e) {
+                this.isRotating = true;
+                const rect = this.currentGrid.element.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+                this.dragStart = { 
+                    x: e.clientX, 
+                    y: e.clientY,
+                    centerX: centerX,
+                    centerY: centerY,
+                    startAngle: Math.atan2(e.clientY - centerY, e.clientX - centerX)
+                };
+                this.gridStart = { ...this.currentGrid };
+            }
+
+            handleMouseMove(e) {
+                if (this.isDragging && this.currentGrid) {
+                    const deltaX = (e.clientX - this.dragStart.x) / this.zoom;
+                    const deltaY = (e.clientY - this.dragStart.y) / this.zoom;
+                    
+                    let newX = this.gridStart.x + deltaX;
+                    let newY = this.gridStart.y + deltaY;
+                    
+                    // Constrain grid within image boundaries
+                    newX = Math.max(this.currentImage.x, 
+                            Math.min(newX, this.currentImage.x + this.currentImage.width - this.currentGrid.width));
+                    newY = Math.max(this.currentImage.y, 
+                            Math.min(newY, this.currentImage.y + this.currentImage.height - this.currentGrid.height));
+                    
+                    this.currentGrid.x = newX;
+                    this.currentGrid.y = newY;
+                    
+                    this.updateGridPosition();
+                } else if (this.isResizing && this.currentGrid) {
+                    const deltaX = (e.clientX - this.dragStart.x) / this.zoom;
+                    const deltaY = (e.clientY - this.dragStart.y) / this.zoom;
+                    
+                    // Use the larger delta and maintain aspect ratio
+                    const delta = Math.max(deltaX, deltaY);
+                    let newWidth = Math.max(100, this.gridStart.width + delta);
+                    let newHeight = newWidth * this.currentGrid.aspectRatio;
+                    
+                    // Constrain grid size within image boundaries
+                    const maxWidth = this.currentImage.x + this.currentImage.width - this.currentGrid.x;
+                    const maxHeight = this.currentImage.y + this.currentImage.height - this.currentGrid.y;
+                    
+                    // Scale down if either dimension exceeds boundaries
+                    if (newWidth > maxWidth || newHeight > maxHeight) {
+                        const scaleDown = Math.min(maxWidth / newWidth, maxHeight / newHeight);
+                        newWidth *= scaleDown;
+                        newHeight *= scaleDown;
+                    }
+                    
+                    this.currentGrid.width = newWidth;
+                    this.currentGrid.height = newHeight;
+                    
+                    this.updateGridPosition();
+                } else if (this.isRotating && this.currentGrid) {
+                    const rect = this.currentGrid.element.getBoundingClientRect();
+                    const centerX = rect.left + rect.width / 2;
+                    const centerY = rect.top + rect.height / 2;
+                    
+                    const currentAngle = Math.atan2(e.clientY - centerY, e.clientX - centerX);
+                    const deltaAngle = currentAngle - this.dragStart.startAngle;
+                    
+                    let newRotation = this.gridStart.rotation + deltaAngle * (180 / Math.PI);
+                    
+                    // Snap to 15-degree increments if shift is held
+                    if (e.shiftKey) {
+                        newRotation = Math.round(newRotation / 15) * 15;
+                    }
+                    
+                    this.currentGrid.rotation = newRotation;
+                    
+                    this.updateGridPosition();
+                } else if (this.isPanning) {
+                    // Update canvas panning
+                    const deltaX = e.clientX - this.dragStart.x;
+                    const deltaY = e.clientY - this.dragStart.y;
+                    
+                    this.panX = this.panStart.x + deltaX;
+                    this.panY = this.panStart.y + deltaY;
+                    
+                    this.updateCanvasTransform();
+                }
+            }
+
+            updateGridPosition() {
+                if (!this.currentGrid) return;
+                
+                const { x, y, width, height, rotation } = this.currentGrid;
+                const element = this.currentGrid.element;
+                
+                element.style.left = x + 'px';
+                element.style.top = y + 'px';
+                element.style.width = width + 'px';
+                element.style.height = height + 'px';
+                element.style.transform = `rotate(${rotation}deg)`;
+
+                this.updateTilePreview();
+            }
+
+            handleMouseUp() {
+                this.isDragging = false;
+                this.isResizing = false;
+                this.isRotating = false;
+                this.isPanning = false;
+            }
+
+            handlePanStart(e) {
+                this.isPanning = true;
+                this.dragStart = { x: e.clientX, y: e.clientY };
+                this.panStart = { x: this.panX, y: this.panY };
+            }
+
+            handleZoom(e) {
+                const delta = e.deltaY > 0 ? 0.9 : 1.1;
+                const newZoom = Math.max(0.1, Math.min(5, this.zoom * delta));
+                
+                // Get mouse position relative to container
+                const rect = this.canvasContainer.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+                
+                // Calculate zoom point
+                const zoomPointX = (mouseX - this.panX) / this.zoom;
+                const zoomPointY = (mouseY - this.panY) / this.zoom;
+                
+                this.zoom = newZoom;
+                
+                // Adjust pan to zoom towards mouse
+                this.panX = mouseX - zoomPointX * this.zoom;
+                this.panY = mouseY - zoomPointY * this.zoom;
+                
+                this.updateCanvasTransform();
+                this.updateZoomInfo();
+            }
+
+            updateCanvasTransform() {
+                this.canvas.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.zoom})`;
+            }
+
+            updateZoomInfo() {
+                document.getElementById('zoomInfo').textContent = 
+                    `Zoom: ${Math.round(this.zoom * 100)}% | Mouse wheel: zoom | Shift+rotate: snap to 15°`;
+            }
+
+            updateCanvas() {
+                const containerRect = this.canvasContainer.getBoundingClientRect();
+                this.canvas.style.width = containerRect.width + 'px';
+                this.canvas.style.height = containerRect.height + 'px';
+                
+                // Center canvas initially
+                if (this.panX === 0 && this.panY === 0) {
+                    this.panX = 0;
+                    this.panY = 0;
+                    this.updateCanvasTransform();
+                }
+            }
+
+            updateImageInfo() {
+                if (!this.currentImage) {
+                    document.getElementById('imageInfo').textContent = 'No image loaded';
+                    return;
+                }
+
+                const gridInfo = this.currentGrid ? 
+                    `Grid: ${Math.round(this.currentGrid.width)} × ${Math.round(this.currentGrid.height)}px
+Position: ${Math.round(this.currentGrid.x - this.currentImage.x)}, ${Math.round(this.currentGrid.y - this.currentImage.y)}
+Rotation: ${Math.round(this.currentGrid.rotation)}°` : 'No grid';
+
+                const info = `File: ${this.currentImage.filename}
+Original: ${this.currentImage.originalImg.width} × ${this.currentImage.originalImg.height}px
+Display: ${Math.round(this.currentImage.width)} × ${Math.round(this.currentImage.height)}px
+${gridInfo}`;
+                
+                document.getElementById('imageInfo').innerHTML = info.replace(/\n/g, '<br>');
+            }
+
+            updateTilePreview() {
+                // Remove existing preview
+                document.querySelectorAll('.preview-tile').forEach(tile => tile.remove());
+                
+                if (!this.currentGrid) return;
+
+                const tileWidth = parseInt(document.getElementById('tileWidth').value);
+                const tileHeight = parseInt(document.getElementById('tileHeight').value);
+                const gap = parseInt(document.getElementById('tileGap').value);
+                const cols = parseInt(document.getElementById('gridCols').value);
+                const rows = parseInt(document.getElementById('gridRows').value);
+                const gapCoversImage = document.getElementById('gapCoversImage').checked;
+
+                // Calculate actual tile dimensions within the grid
+                let actualTileWidth, actualTileHeight;
+                
+                if (gapCoversImage) {
+                    actualTileWidth = this.currentGrid.width / cols;
+                    actualTileHeight = this.currentGrid.height / rows;
+                } else {
+                    actualTileWidth = (this.currentGrid.width - (cols - 1) * gap) / cols;
+                    actualTileHeight = (this.currentGrid.height - (rows - 1) * gap) / rows;
+                }
+
+                // Create preview tiles
+                for (let row = 0; row < rows; row++) {
+                    for (let col = 0; col < cols; col++) {
+                        const tile = document.createElement('div');
+                        tile.className = 'preview-tile';
+                        
+                        let tileX, tileY;
+                        
+                        if (gapCoversImage) {
+                            tileX = this.currentGrid.x + col * actualTileWidth;
+                            tileY = this.currentGrid.y + row * actualTileHeight;
+                        } else {
+                            tileX = this.currentGrid.x + col * (actualTileWidth + gap);
+                            tileY = this.currentGrid.y + row * (actualTileHeight + gap);
+                        }
+                        
+                        tile.style.left = tileX + 'px';
+                        tile.style.top = tileY + 'px';
+                        tile.style.width = actualTileWidth + 'px';
+                        tile.style.height = actualTileHeight + 'px';
+                        
+                        this.canvas.appendChild(tile);
+                    }
+                }
+
+                // Update image info with current grid position
+                this.updateImageInfo();
+            }
+
+            async downloadTiles() {
+                if (!this.currentImage || !this.currentGrid) return;
+
+                const tileWidth = parseInt(document.getElementById('tileWidth').value);
+                const tileHeight = parseInt(document.getElementById('tileHeight').value);
+                const gap = parseInt(document.getElementById('tileGap').value);
+                const cols = parseInt(document.getElementById('gridCols').value);
+                const rows = parseInt(document.getElementById('gridRows').value);
+                const gapCoversImage = document.getElementById('gapCoversImage').checked;
+
+                const zip = new JSZip();
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                canvas.width = tileWidth;
+                canvas.height = tileHeight;
+
+                // Load original image
+                const img = this.currentImage.originalImg;
+                
+                // Calculate scale factors
+                const scaleX = this.currentImage.width / img.width;
+                const scaleY = this.currentImage.height / img.height;
+
+                // Calculate actual tile dimensions within the grid
+                let actualTileWidth, actualTileHeight;
+                
+                if (gapCoversImage) {
+                    actualTileWidth = this.currentGrid.width / cols;
+                    actualTileHeight = this.currentGrid.height / rows;
+                } else {
+                    actualTileWidth = (this.currentGrid.width - (cols - 1) * gap) / cols;
+                    actualTileHeight = (this.currentGrid.height - (rows - 1) * gap) / rows;
+                }
+                
+                for (let row = 0; row < rows; row++) {
+                    for (let col = 0; col < cols; col++) {
+                        ctx.clearRect(0, 0, tileWidth, tileHeight);
+                        
+                        // Calculate tile position within grid
+                        let tileX, tileY;
+                        
+                        if (gapCoversImage) {
+                            tileX = this.currentGrid.x + col * actualTileWidth;
+                            tileY = this.currentGrid.y + row * actualTileHeight;
+                        } else {
+                            tileX = this.currentGrid.x + col * (actualTileWidth + gap);
+                            tileY = this.currentGrid.y + row * (actualTileHeight + gap);
+                        }
+                        
+                        // Convert to image coordinates
+                        const sourceX = (tileX - this.currentImage.x) / scaleX;
+                        const sourceY = (tileY - this.currentImage.y) / scaleY;
+                        const sourceWidth = actualTileWidth / scaleX;
+                        const sourceHeight = actualTileHeight / scaleY;
+                        
+                        // Apply transformations if needed
+                        ctx.save();
+                        
+                        if (this.currentGrid.rotation !== 0) {
+                            ctx.translate(tileWidth / 2, tileHeight / 2);
+                            ctx.rotate(this.currentGrid.rotation * Math.PI / 180);
+                            ctx.translate(-tileWidth / 2, -tileHeight / 2);
+                        }
+                        
+                        // Draw the tile
+                        ctx.drawImage(
+                            img,
+                            sourceX, sourceY, sourceWidth, sourceHeight,
+                            0, 0, tileWidth, tileHeight
+                        );
+                        
+                        ctx.restore();
+                        
+                        // Convert to blob and add to zip
+                        const blob = await new Promise(resolve => {
+                            canvas.toBlob(resolve, 'image/png');
+                        });
+                        
+                        const filename = `tile_${row + 1}_${col + 1}.png`;
+                        zip.file(filename, blob);
+                    }
+                }
+
+                // Generate and download zip
+                const zipBlob = await zip.generateAsync({ type: 'blob' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(zipBlob);
+                link.download = 'tyler_tiles.zip';
+                link.click();
+                
+                URL.revokeObjectURL(link.href);
+            }
+        }
+
+        // Initialize app when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            new TylerApp();
+        });
+    </script>
+</body>
+</html>
