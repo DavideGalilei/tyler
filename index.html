@@ -265,6 +265,28 @@
                 <input type="checkbox" id="gapCoversImage" checked>
                 <label for="gapCoversImage">Gap covers image</label>
             </div>
+            <div class="checkbox-row">
+                <input type="checkbox" id="enableMargins">
+                <label for="enableMargins">Enable tile margins (extrude edges)</label>
+            </div>
+            <div id="marginControls" style="display: none; margin-top: 10px;">
+                <div class="control-row">
+                    <label>Top margin (px):</label>
+                    <input type="number" id="topMargin" value="2" min="0" max="50">
+                </div>
+                <div class="control-row">
+                    <label>Bottom margin (px):</label>
+                    <input type="number" id="bottomMargin" value="2" min="0" max="50">
+                </div>
+                <div class="control-row">
+                    <label>Left margin (px):</label>
+                    <input type="number" id="leftMargin" value="2" min="0" max="50">
+                </div>
+                <div class="control-row">
+                    <label>Right margin (px):</label>
+                    <input type="number" id="rightMargin" value="2" min="0" max="50">
+                </div>
+            </div>
         </div>
 
         <div class="controls-group">
@@ -354,6 +376,12 @@
                         }
                         this.updateTilePreview();
                     });
+                });
+
+                // Enable margins checkbox
+                document.getElementById('enableMargins').addEventListener('change', (e) => {
+                    const marginControls = document.getElementById('marginControls');
+                    marginControls.style.display = e.target.checked ? 'block' : 'none';
                 });
 
                 // Download button
@@ -815,13 +843,21 @@ ${gridInfo}`;
                 const cols = parseInt(document.getElementById('gridCols').value);
                 const rows = parseInt(document.getElementById('gridRows').value);
                 const gapCoversImage = document.getElementById('gapCoversImage').checked;
+                
+                // Get margin settings
+                const enableMargins = document.getElementById('enableMargins').checked;
+                const topMargin = enableMargins ? parseInt(document.getElementById('topMargin').value) : 0;
+                const bottomMargin = enableMargins ? parseInt(document.getElementById('bottomMargin').value) : 0;
+                const leftMargin = enableMargins ? parseInt(document.getElementById('leftMargin').value) : 0;
+                const rightMargin = enableMargins ? parseInt(document.getElementById('rightMargin').value) : 0;
 
                 const zip = new JSZip();
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
                 
-                canvas.width = tileWidth;
-                canvas.height = tileHeight;
+                // Canvas size includes margins
+                canvas.width = tileWidth + leftMargin + rightMargin;
+                canvas.height = tileHeight + topMargin + bottomMargin;
 
                 // Load original image
                 const img = this.currentImage.originalImg;
@@ -843,7 +879,7 @@ ${gridInfo}`;
                 
                 for (let row = 0; row < rows; row++) {
                     for (let col = 0; col < cols; col++) {
-                        ctx.clearRect(0, 0, tileWidth, tileHeight);
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
                         
                         // Calculate tile position within grid (pixel-perfect)
                         let tileX, tileY;
@@ -866,17 +902,23 @@ ${gridInfo}`;
                         ctx.save();
                         
                         if (this.currentGrid.rotation !== 0) {
-                            ctx.translate(tileWidth / 2, tileHeight / 2);
+                            ctx.translate(canvas.width / 2, canvas.height / 2);
                             ctx.rotate(this.currentGrid.rotation * Math.PI / 180);
-                            ctx.translate(-tileWidth / 2, -tileHeight / 2);
+                            ctx.translate(-canvas.width / 2, -canvas.height / 2);
                         }
                         
-                        // Draw the tile with pixel-perfect coordinates
+                        // Draw the main tile content (offset by margins)
                         ctx.drawImage(
                             img,
                             sourceX, sourceY, sourceWidth, sourceHeight,
-                            0, 0, tileWidth, tileHeight
+                            leftMargin, topMargin, tileWidth, tileHeight
                         );
+                        
+                        // Add margins by extruding edges if enabled
+                        if (enableMargins) {
+                            this.extrudeTileEdges(ctx, leftMargin, topMargin, tileWidth, tileHeight, 
+                                                topMargin, bottomMargin, leftMargin, rightMargin);
+                        }
                         
                         ctx.restore();
                         
@@ -898,6 +940,138 @@ ${gridInfo}`;
                 link.click();
                 
                 URL.revokeObjectURL(link.href);
+            }
+
+            extrudeTileEdges(ctx, offsetX, offsetY, tileWidth, tileHeight, topMargin, bottomMargin, leftMargin, rightMargin) {
+                // Get image data from the main tile area
+                const imageData = ctx.getImageData(offsetX, offsetY, tileWidth, tileHeight);
+                const data = imageData.data;
+                
+                // Extrude top margin
+                if (topMargin > 0) {
+                    for (let y = 0; y < topMargin; y++) {
+                        for (let x = 0; x < tileWidth; x++) {
+                            // Copy from first row of tile
+                            const sourceIndex = x * 4;
+                            const targetX = offsetX + x;
+                            const targetY = y;
+                            
+                            const r = data[sourceIndex];
+                            const g = data[sourceIndex + 1];
+                            const b = data[sourceIndex + 2];
+                            const a = data[sourceIndex + 3];
+                            
+                            ctx.fillStyle = `rgba(${r},${g},${b},${a/255})`;
+                            ctx.fillRect(targetX, targetY, 1, 1);
+                        }
+                    }
+                }
+                
+                // Extrude bottom margin
+                if (bottomMargin > 0) {
+                    const lastRowY = tileHeight - 1;
+                    for (let y = 0; y < bottomMargin; y++) {
+                        for (let x = 0; x < tileWidth; x++) {
+                            // Copy from last row of tile
+                            const sourceIndex = (lastRowY * tileWidth + x) * 4;
+                            const targetX = offsetX + x;
+                            const targetY = offsetY + tileHeight + y;
+                            
+                            const r = data[sourceIndex];
+                            const g = data[sourceIndex + 1];
+                            const b = data[sourceIndex + 2];
+                            const a = data[sourceIndex + 3];
+                            
+                            ctx.fillStyle = `rgba(${r},${g},${b},${a/255})`;
+                            ctx.fillRect(targetX, targetY, 1, 1);
+                        }
+                    }
+                }
+                
+                // Extrude left margin
+                if (leftMargin > 0) {
+                    for (let x = 0; x < leftMargin; x++) {
+                        for (let y = 0; y < tileHeight; y++) {
+                            // Copy from first column of tile
+                            const sourceIndex = (y * tileWidth) * 4;
+                            const targetX = x;
+                            const targetY = offsetY + y;
+                            
+                            const r = data[sourceIndex];
+                            const g = data[sourceIndex + 1];
+                            const b = data[sourceIndex + 2];
+                            const a = data[sourceIndex + 3];
+                            
+                            ctx.fillStyle = `rgba(${r},${g},${b},${a/255})`;
+                            ctx.fillRect(targetX, targetY, 1, 1);
+                        }
+                    }
+                }
+                
+                // Extrude right margin
+                if (rightMargin > 0) {
+                    const lastColX = tileWidth - 1;
+                    for (let x = 0; x < rightMargin; x++) {
+                        for (let y = 0; y < tileHeight; y++) {
+                            // Copy from last column of tile
+                            const sourceIndex = (y * tileWidth + lastColX) * 4;
+                            const targetX = offsetX + tileWidth + x;
+                            const targetY = offsetY + y;
+                            
+                            const r = data[sourceIndex];
+                            const g = data[sourceIndex + 1];
+                            const b = data[sourceIndex + 2];
+                            const a = data[sourceIndex + 3];
+                            
+                            ctx.fillStyle = `rgba(${r},${g},${b},${a/255})`;
+                            ctx.fillRect(targetX, targetY, 1, 1);
+                        }
+                    }
+                }
+                
+                // Fill corners with corner pixels
+                if (topMargin > 0 && leftMargin > 0) {
+                    // Top-left corner
+                    const r = data[0];
+                    const g = data[1];
+                    const b = data[2];
+                    const a = data[3];
+                    ctx.fillStyle = `rgba(${r},${g},${b},${a/255})`;
+                    ctx.fillRect(0, 0, leftMargin, topMargin);
+                }
+                
+                if (topMargin > 0 && rightMargin > 0) {
+                    // Top-right corner
+                    const sourceIndex = (tileWidth - 1) * 4;
+                    const r = data[sourceIndex];
+                    const g = data[sourceIndex + 1];
+                    const b = data[sourceIndex + 2];
+                    const a = data[sourceIndex + 3];
+                    ctx.fillStyle = `rgba(${r},${g},${b},${a/255})`;
+                    ctx.fillRect(offsetX + tileWidth, 0, rightMargin, topMargin);
+                }
+                
+                if (bottomMargin > 0 && leftMargin > 0) {
+                    // Bottom-left corner
+                    const sourceIndex = ((tileHeight - 1) * tileWidth) * 4;
+                    const r = data[sourceIndex];
+                    const g = data[sourceIndex + 1];
+                    const b = data[sourceIndex + 2];
+                    const a = data[sourceIndex + 3];
+                    ctx.fillStyle = `rgba(${r},${g},${b},${a/255})`;
+                    ctx.fillRect(0, offsetY + tileHeight, leftMargin, bottomMargin);
+                }
+                
+                if (bottomMargin > 0 && rightMargin > 0) {
+                    // Bottom-right corner
+                    const sourceIndex = ((tileHeight - 1) * tileWidth + (tileWidth - 1)) * 4;
+                    const r = data[sourceIndex];
+                    const g = data[sourceIndex + 1];
+                    const b = data[sourceIndex + 2];
+                    const a = data[sourceIndex + 3];
+                    ctx.fillStyle = `rgba(${r},${g},${b},${a/255})`;
+                    ctx.fillRect(offsetX + tileWidth, offsetY + tileHeight, rightMargin, bottomMargin);
+                }
             }
         }
 
